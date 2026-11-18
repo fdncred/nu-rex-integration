@@ -30,12 +30,12 @@ dofile(os.getenv("HOME") .. "/src/nu-rex-integration/nurx.lua")
 
 ## Commands
 
-The flags are ordinary nushell flags, so `--session work` and `-s work` do the same thing. `help nurx panes` shows a command's flags, and so does `nurx panes --help`.
+The flags are ordinary nushell flags, so `nurx panes --details` and `nurx panes -d` do the same thing. `help nurx panes` shows a command's flags, and so does `nurx panes --help`.
 
 | Command             | What it does                                                                                                                                                                                                                                                                                                    |
 | ------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `nurx`              | Shows the value piped into it in Rex's command palette and returns what you pick. An optional argument sets the question at the top. `--multi` (`-m`) returns a list, `--index` (`-i`) returns positions instead of items, and `--display` (`-d`) takes a column or a closure for each item's title.            |
-| `nurx panes`        | Lists every terminal pane with its session, tab, label, focus and IDs. `--session` (`-s`) takes a session label or ID. `--details` (`-d`) adds the foreground program, the folder and the status records.                                                                                                       |
+| `nurx panes`        | Lists every terminal pane with its session, tab, label, focus and IDs. `--session` (`-s`) takes a session label or ID from `rex ls`, or `$env.REX_SESSION` for the session you're in. `--details` (`-d`) adds the foreground program, the folder and the status records.                                                                                                       |
 | `nurx status`       | Lists every status record in every pane, newest first. `--session` (`-s`) keeps one session.                                                                                                                                                                                                                    |
 | `nurx status send`  | Reports a state for this pane: `idle`, `working`, `done`, `blocked`, `error`, or `clear` to remove it. `--msg` and `--title` take text, `--progress` takes 0 to 100, `--kind` takes `permission`, `question` or `auth` for `blocked`, `--id` takes a record path such as `job/3`, and `--app` defaults to `nu`. |
 | `nurx events`       | Streams the server's events as records until you press Ctrl-C. `--session` (`-s`) adds that session's pane events, `--all` (`-a`) gives every event, and `--clients` keeps the client connect and disconnect events.                                                                                            |
@@ -54,11 +54,11 @@ ls | nurx "Pick a file"
 [low medium high] | nurx --index
 ps | nurx --display name | get pid
 
-# Rex state as tables
+# Rex state as tables. $env.REX_SESSION is the session this pane is in.
 nurx panes
-nurx panes --session work --details
-nurx status --session work
-nurx events --session work
+nurx panes --session $env.REX_SESSION --details
+nurx status --session $env.REX_SESSION
+nurx events --session $env.REX_SESSION    # streams until Ctrl-C
 nurx events --all --clients
 
 # Report a state for this pane
@@ -68,14 +68,15 @@ nurx status send blocked --kind question --msg "approve the deploy?"
 nurx status send done --msg "deploy finished"
 nurx status send clear
 
-# Run a closure on other Rex hosts
+# Run a closure on Rex hosts. local is the server you're connected to.
 nurx on [local] {|| sys host | get hostname }
+# build and windows stand for host labels from `rex hosts`
 nurx on [build windows] {|a| ls $a.dir | length } --with {dir: src}
 
 # The last value, layouts, hooks and the version
 nurx last --full
-nurx layout allow ~/src/api
-nurx layout open ~/src/api
+nurx layout allow    # trusts .nurx/layout.nuon in the current folder
+nurx layout open ~/src/api    # any folder with a .nurx/layout.nuon
 nurx enable status tint
 nurx version
 ```
@@ -87,17 +88,20 @@ To read a pane's screen, use Rex's own `rex capture`. For a pane in another sess
 ```nushell
 nurx panes --details | where process == cargo
 nurx status | where state == error
-nurx events -s build | where type == terminal.pwd_changed | first
 
-let logs = (nurx panes | where pane == logs | first)
-rex capture -s $logs.session_id -b $logs.block_id --unwrap | lines | last 5
+# Waits for the next prompt in another pane of this session
+nurx events -s $env.REX_SESSION | where type == terminal.pwd_changed | first
+
+# The last 5 lines of another pane in this session
+let pane = (nurx panes -s $env.REX_SESSION | where block_id != $env.REX_BLOCK | first)
+rex capture -s $pane.session_id -b $pane.block_id --unwrap | lines | last 5
 ```
 
 `nurx panes` asks the server for each session's view and keeps the terminal panes. With seven panes it took 76 ms. `--details` makes three API calls per pane in parallel and took 176 ms.
 
 `nurx events` names each event the way Rex's Lua `rex.on` does, such as `terminal.pwd_changed` or `window_created`. Each record has `type`, `session_id`, `block_id` and `data`.
 
-Pane events such as `terminal.pwd_changed` come only with `-s SESSION` or `--all`. Without either, you get session-level changes, such as a session starting or ending. Every `rex` call connects to the server as a client, the module's own calls included, so `nurx events` drops `client_connected` and `client_disconnected` unless you pass `--clients`.
+Pane events such as `terminal.pwd_changed` come only with `--session` or `--all`. Without either, you get session-level changes, such as a session starting or ending. Rex sends `terminal.pwd_changed` at every prompt, not only after a `cd`. Every `rex` call connects to the server as a client, the module's own calls included, so `nurx events` drops `client_connected` and `client_disconnected` unless you pass `--clients`.
 
 ## Pick from any value
 
@@ -127,8 +131,8 @@ The Lua file exists because Rex only asks the apps from an action the server run
 ## Run a closure on other hosts
 
 ```nushell
-nurx on [build-box mac-mini] {|| sys host | get hostname }
 nurx on [local] {|a| 1..$a.n | each {|i| $i * 2 } } --with {n: 3}
+nurx on [build-box mac-mini] {|| sys host | get hostname }    # labels from `rex hosts`
 ```
 
 `nurx on` returns one row per host with `host`, `exit_code`, `result` and `error`. Host names come from `rex hosts`, and `local` means the server you're connected to. For each host, in parallel, it opens a hidden session, runs `nu -n -c` with the closure's source, reads the result off the pane's screen as nuon, and kills the session. Passing the result through screen text is a bit of a hack, but it needs nothing on the host except nu.
