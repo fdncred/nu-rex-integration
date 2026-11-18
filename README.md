@@ -32,19 +32,19 @@ dofile(os.getenv("HOME") .. "/src/nu-rex-integration/nurx.lua")
 
 The flags are ordinary nushell flags, so `--session work` and `-s work` do the same thing. `help nurx panes` shows a command's flags, and so does `nurx panes --help`.
 
-| Command | What it does |
-| --- | --- |
-| `nurx` | Shows the value piped into it in Rex's command palette and returns what you pick. An optional argument sets the question at the top. `--multi` (`-m`) returns a list, `--index` (`-i`) returns positions instead of items, and `--display` (`-d`) takes a column or a closure for each item's title. |
-| `nurx panes` | Lists every terminal pane with its session, tab, label, focus and IDs. `--session` (`-s`) takes a session label or ID. `--details` (`-d`) adds the foreground program, the folder and the status records. |
-| `nurx status` | Lists every status record in every pane, newest first. `--session` (`-s`) keeps one session. |
-| `nurx status send` | Reports a state for this pane: `idle`, `working`, `done`, `blocked`, `error`, or `clear` to remove it. `--msg` and `--title` take text, `--progress` takes 0 to 100, `--kind` takes `permission`, `question` or `auth` for `blocked`, `--id` takes a record path such as `job/3`, and `--app` defaults to `nu`. |
-| `nurx events` | Streams the server's events as records until you press Ctrl-C. `--session` (`-s`) adds that session's pane events, `--all` (`-a`) gives every event, and `--clients` keeps the client connect and disconnect events. |
-| `nurx on` | Runs a closure in nu on a list of Rex hosts and returns one row per host. `--with` passes a value to the closure as its argument. |
-| `nurx last` | Opens this pane's last displayed value in `explore`. `--full` (`-f`) covers the whole tab. |
-| `nurx layout allow` | Trusts the layout file in a folder, the current one if you don't name one. |
-| `nurx layout open` | Opens a folder's layout as a tab now, trusted or not. |
-| `nurx enable` | Turns on the hooks for the features you name: `status`, `last`, `layout` or `tint`. |
-| `nurx version` | Returns the versions of nurx, nushell and the Rex server. |
+| Command             | What it does                                                                                                                                                                                                                                                                                                    |
+| ------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `nurx`              | Shows the value piped into it in Rex's command palette and returns what you pick. An optional argument sets the question at the top. `--multi` (`-m`) returns a list, `--index` (`-i`) returns positions instead of items, and `--display` (`-d`) takes a column or a closure for each item's title.            |
+| `nurx panes`        | Lists every terminal pane with its session, tab, label, focus and IDs. `--session` (`-s`) takes a session label or ID. `--details` (`-d`) adds the foreground program, the folder and the status records.                                                                                                       |
+| `nurx status`       | Lists every status record in every pane, newest first. `--session` (`-s`) keeps one session.                                                                                                                                                                                                                    |
+| `nurx status send`  | Reports a state for this pane: `idle`, `working`, `done`, `blocked`, `error`, or `clear` to remove it. `--msg` and `--title` take text, `--progress` takes 0 to 100, `--kind` takes `permission`, `question` or `auth` for `blocked`, `--id` takes a record path such as `job/3`, and `--app` defaults to `nu`. |
+| `nurx events`       | Streams the server's events as records until you press Ctrl-C. `--session` (`-s`) adds that session's pane events, `--all` (`-a`) gives every event, and `--clients` keeps the client connect and disconnect events.                                                                                            |
+| `nurx on`           | Runs a closure in nu on a list of Rex hosts and returns one row per host. `--with` passes a value to the closure as its argument.                                                                                                                                                                               |
+| `nurx last`         | Opens this pane's last displayed value in `explore`. `--full` (`-f`) covers the whole tab.                                                                                                                                                                                                                      |
+| `nurx layout allow` | Trusts the layout file in a folder, the current one if you don't name one.                                                                                                                                                                                                                                      |
+| `nurx layout open`  | Opens a folder's layout as a tab now, trusted or not.                                                                                                                                                                                                                                                           |
+| `nurx enable`       | Turns on the hooks for the features you name: `status`, `last`, `layout` or `tint`.                                                                                                                                                                                                                             |
+| `nurx version`      | Returns the versions of nurx, nushell and the Rex server.                                                                                                                                                                                                                                                       |
 
 ```nushell
 # Pick from a value in Rex's command palette
@@ -152,13 +152,13 @@ Call `nurx enable` at the end of `config.nu`. A later `$env.config.hooks.pre_pro
 
 Each command reports its state to Rex with OSC 7501, the [program status protocol](https://www.superlogical.com/rex/docs/build/program-status). These are the records Rex holds:
 
-| You run | Rex records |
-| --- | --- |
-| `sleep 4sec`, while it runs | `working`, `sleep 4sec` |
-| `sleep 4sec`, after it ends | `done`, `sleep 4sec · exit 0 · 4.01 sec` |
-| a command that succeeds in under 3 seconds | none, the hook clears it |
-| `^false` | `error`, `^false · exit 1 · 0.01 sec` |
-| an external command stopped with Ctrl-C | `idle`, with exit -2 |
+| You run                                    | Rex records                              |
+| ------------------------------------------ | ---------------------------------------- |
+| `sleep 4sec`, while it runs                | `working`, `sleep 4sec`                  |
+| `sleep 4sec`, after it ends                | `done`, `sleep 4sec · exit 0 · 4.01 sec` |
+| a command that succeeds in under 3 seconds | none, the hook clears it                 |
+| `^false`                                   | `error`, `^false · exit 1 · 0.01 sec`    |
+| an external command stopped with Ctrl-C    | `idle`, with exit -2                     |
 
 In Rex 0.1.0-preview.20, a tab you aren't looking at shows a spinner while its command is `working`, and the spinner goes away when the command ends. A `done` record doesn't mark the tab. Rex's docs say the session picker marks sessions with finished or blocked work. `nurx status` lists the records whatever Rex draws.
 
@@ -237,10 +237,6 @@ Before each prompt, the hook sends `OSC 11` with the matching color, or `OSC 111
 It uses OSC 11 instead of Rex's `set_theme` method, because `set_theme` doesn't take effect on a pane the Rex app is showing. OSC 11 is plain output, so a nu on a remote host with this hook should tint your local pane too. Nobody has tried that yet.
 
 Nushell has no exit hook, so leaving a tinted nu with `exit` keeps the tint. The parent shell resets it at its next prompt if it runs this hook too.
-
-## Tests
-
-`nu test.nu` runs the tests in hidden Rex sessions, which leave your screen, history, cache and trusted layouts alone. [TESTING.md](TESTING.md) explains how they work and how to add one. [TODO.md](TODO.md) lists what the tests can't check and nobody has checked in the Rex app yet.
 
 ## Versions
 
