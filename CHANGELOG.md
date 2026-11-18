@@ -4,6 +4,16 @@ Each version of nurx has a section here, newest first. `nurx version` prints the
 
 Versions follow [semantic versioning](https://semver.org). Renaming or removing a command, flag, environment variable or file location breaks someone's `config.nu`, so it bumps the major version, or the minor version while nurx is at 0.x.
 
+## 0.2.0 - 2026-11-18
+
+### Added
+
+- Typing `nurx` on its own shows its help with a Subcommands section that lists the other commands, the way `str` does. nushell's own `help nurx` and `nurx --help` still leave that section out. With no prompt or flags, `null | nurx` shows this help too, where it used to raise an error.
+
+### Changed
+
+- The help for `nurx events`, `nurx on`, `nurx status send`, `nurx layout allow`, `nurx layout open`, `nurx version` and `nurx enable` starts with a one-line summary, and the details follow in their own paragraph. The Subcommands section shows that summary.
+
 ## 0.1.0 - 2026-11-18
 
 The first version.

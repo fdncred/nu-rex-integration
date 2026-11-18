@@ -5,11 +5,11 @@
 #
 # Commands return Rex's state as tables and run closures on other Rex hosts. Hooks are opt-in:
 # `nurx enable` turns on only the features you name. Every command starts with `nurx`, so none
-# of them hides a subcommand of the `rex` binary. The picker, `VALUE | nurx`, also needs nurx.lua
-# loaded from Rex's init.lua.
+# of them hides a subcommand of the `rex` binary. `nurx` on its own shows its help and lists
+# them. The picker, `VALUE | nurx`, also needs nurx.lua loaded from Rex's init.lua.
 
 # This module's version. CHANGELOG.md has a section for each one, and test.nu checks they match.
-const VERSION = "0.1.0"
+const VERSION = "0.2.0"
 
 const TERMINAL = "com.superlogical.terminal"
 const FEATURES = [status last layout tint]
@@ -84,9 +84,10 @@ export def "nurx status" [--session (-s): string]: nothing -> table {
     | sort-by at --reverse
 }
 
-# The server's events as a stream of flat records, named the way Rex's Lua `rex.on` names them
-# (terminal.pwd_changed, window_created, ...). Every rex call connects a client, so client_*
-# events are left out unless you pass --clients.
+# The server's events as a stream of flat records.
+#
+# They're named the way Rex's Lua `rex.on` names them (terminal.pwd_changed, window_created, ...).
+# Every rex call connects a client, so client_* events are left out unless you pass --clients.
 export def "nurx events" [
     --session (-s): string # one session's events, including its panes'; without it, only session-level changes
     --all (-a) # every server event
@@ -111,9 +112,10 @@ export def "nurx events" [
 
 # Closures on other hosts -----------------------------------------------------------------------
 
-# Run a closure in nu on each host's Rex server and collect the results. Each host gets a hidden
-# session, which is killed afterwards. The closure's source travels as text, so variables it
-# captured don't exist on the other host; pass data with --with.
+# Run a closure in nu on each host's Rex server and collect the results.
+#
+# Each host gets a hidden session, which is killed afterwards. The closure's source travels as
+# text, so variables it captured don't exist on the other host; pass data with --with.
 export def "nurx on" [
     hosts: list<string> # host labels from `rex hosts`, or "local" for this server
     code: closure
@@ -237,12 +239,36 @@ def "pick result" [input: any, rows: list<any>, ids: list<any>, multi: bool, ind
     if $multi { $picked } else { $picked.0 }
 }
 
+# `help nurx` with a Subcommands section after Usage, the way `str` shows its help. nushell looks
+# for a module main's subcommands under the name `main`, so `help nurx` lists none. scope gives
+# the names the caller imported, so a plain `use nurx.nu` lists `nurx nurx panes` and so on. The
+# section borrows its colors from the help text, the heading's from Usage and the names' from
+# --help, so it follows the color config and use_ansi_coloring.
+def "pick help" []: nothing -> string {
+    let help = (help nurx)
+    let code = '(?<code>(?:\x1b\[[0-9;]*m)?)'
+    let heading = ($help | parse -r $"($code)Usage" | get 0.code)
+    let name = ($help | parse -r $"($code)--help" | get 0.code)
+    let reset = if $heading == "" { "" } else { ansi reset }
+    let entries = (
+        scope commands
+        | where name starts-with "nurx "
+        # The first line of a command's help is its description, with backticked code highlighted.
+        | each {|c| $"  ($name)($c.name) ($heading)\(custom\)($reset) - (help $c.name | lines | first)\n" }
+        | str join
+    )
+    let parts = ($help | parse -r '(?s)^(?<usage>.*?\n  > [^\n]*\n)(?<rest>.*)$' | first)
+    $"($parts.usage)\n($heading)Subcommands($reset):\n($entries)($parts.rest)"
+}
+
 # Pick from any value in Rex's command palette and get back what you picked.
 #
 # A table shows one item per row: its first text column as the title, the other columns
 # underneath, and an icon for `ls` rows. A list shows its items, a record its fields, and text its
 # lines. Escape, or ctrl+c in the shell, returns nothing. Every connected Rex app is asked, and the
 # first answer wins.
+#
+# Typed alone, with nothing piped in and no arguments, nurx shows this help with its subcommands.
 @example "pick a file" { ls | nurx }
 @example "pick several branches" { ^git branch | nurx --multi "Branches to delete" }
 @example "pick environment variables" { $env | nurx --multi }
@@ -253,6 +279,9 @@ export def main [
     --display (-d): oneof<cell-path, closure> # the column, or a closure, whose text titles each item
 ]: any -> any {
     let input = $in
+    if $input == null and $prompt == null and $display == null and not ($multi or $index) {
+        return (pick help)
+    }
     let rows = (pick rows $input)
     if ($rows | is-empty) { error make {msg: "there is nothing to pick from"} }
     if ($rows | length) > $PICK_LIMIT {
@@ -269,8 +298,10 @@ export def main [
 
 # Command status ---------------------------------------------------------------------------------
 
-# Report a state for this pane with OSC 7501. Rex drops a report whose msg or title holds a
-# control character, a newline included, so those become spaces, and text is cut at 200 characters.
+# Report a state for this pane with OSC 7501.
+#
+# Rex drops a report whose msg or title holds a control character, a newline included, so those
+# become spaces, and text is cut at 200 characters.
 export def "nurx status send" [
     state: string # idle, working, done, blocked, error, or clear
     --msg: string
@@ -403,8 +434,9 @@ def "layout trusted" [file: path]: nothing -> bool {
     | any {|a| $a.path == $file and $a.hash == $hash }
 }
 
-# Trust the layout file in DIR, which defaults to the current folder. Editing the file makes it
-# untrusted again.
+# Trust the layout file in DIR, which defaults to the current folder.
+#
+# Editing the file makes it untrusted again.
 export def "nurx layout allow" [dir?: path]: nothing -> nothing {
     let file = (layout path ($dir | default $env.PWD))
     if not ($file | path exists) { error make {msg: $"no layout file at ($file)"} }
@@ -439,6 +471,7 @@ def "layout tree" [node: any, dir: path]: nothing -> record {
 }
 
 # Open DIR's .nurx/layout.nuon as a new tab in this session, unless a tab with its label is open.
+#
 # DIR defaults to the current folder. This doesn't check trust, since you asked for it.
 export def "nurx layout open" [dir?: path]: nothing -> nothing {
     let dir = ($dir | default $env.PWD | path expand)
@@ -481,8 +514,9 @@ def "tint apply" []: nothing -> nothing {
 
 # Version ------------------------------------------------------------------------------------------
 
-# This module's version, with the versions of nushell and the Rex server, for bug reports. `rex` is
-# null when the server can't be reached.
+# This module's version, with the versions of nushell and the Rex server, for bug reports.
+#
+# `rex` is null when the server can't be reached.
 export def "nurx version" []: nothing -> record {
     {
         nurx: $VERSION
@@ -504,9 +538,10 @@ def "hooks with" [hooks: any, feature: string, code: closure]: nothing -> list<a
     | append {code: $code, nurx: $feature}
 }
 
-# Turn on the hooks for the features you name. Your own hooks are kept, and running it again
-# doesn't add a feature twice. Call it at the end of config.nu, because a later
-# `$env.config.hooks.pre_prompt = [...]` replaces the whole list.
+# Turn on the hooks for the features you name.
+#
+# Your own hooks are kept, and running it again doesn't add a feature twice. Call it at the end of
+# config.nu, because a later `$env.config.hooks.pre_prompt = [...]` replaces the whole list.
 #
 # status   report each command's state to Rex with OSC 7501
 # last     save each displayed value for `nurx last`

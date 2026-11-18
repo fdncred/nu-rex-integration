@@ -166,10 +166,30 @@ def "test version matches the changelog" [] {
 
 def "test picker checks its input" [] {
     for bad in [null 42 [] (0x[01])] {
-        assert error {|| $bad | nurx } $"($bad | describe) should be refused"
+        assert error {|| $bad | nurx "Pick one" } $"($bad | describe) should be refused"
     }
     let too_many = (try { 1.. | nurx; "no error" } catch {|e| $e.msg })
     assert str contains $too_many "at most 2000 items"
+}
+
+# Typed alone, nurx shows its help with a Subcommands section between Usage and Flags, the way
+# `help str` does, under the names the import gave the commands.
+def "test nurx alone shows its help and subcommands" [] {
+    let names = (scope modules | where name == nurx | get 0.commands.name | where $it != nurx | sort)
+    let descriptions = (scope commands | where name in $names | sort-by name | get description)
+    let not_one_line = ($descriptions | where {|d| $d == "" or ($d | str contains "\n") })
+    assert equal $not_one_line [] "each command needs a one-line description"
+    let section = '(?s)\nUsage:\n  > nurx [^\n]*\n\nSubcommands:\n(?<entries>.*?)\n\nFlags:'
+    let entries = {|text|
+        $text | ansi strip | parse -r $section | get -o 0.entries | default "" | lines
+        | parse '  {name} (custom) - {description}'
+    }
+    let shown = (do $entries (nurx))
+    assert equal $shown.name $names
+    # help drops the backticks around the code it highlights.
+    assert equal $shown.description ($descriptions | str replace -a '`' '')
+    let plain = (do $entries (^$nu.current-exe -n --no-history -c $"use ($MODULE); nurx"))
+    assert equal $plain.name ($names | each {|n| $"nurx ($n)" })
 }
 
 # No Rex app connects to the private server, so every question ends in `no_client`. Getting that
@@ -423,6 +443,7 @@ def main [filter: string = ""] {
         ["no command hides a rex subcommand" {|| test no command hides a rex subcommand }]
         ["version matches the changelog" {|| test version matches the changelog }]
         ["picker checks its input" {|| test picker checks its input }]
+        ["nurx alone shows its help" {|| test nurx alone shows its help and subcommands }]
         ["picker asks rex" {|| test picker asks rex }]
         ["picker needs nurx.lua" {|| test picker needs nurx.lua }]
         ["keeps your hooks" {|| test keeps your hooks }]
