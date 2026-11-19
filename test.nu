@@ -278,6 +278,16 @@ def "test last keeps your display hook" [] {
     }
 }
 
+# Your display hook runs inside nurx's wrapper, and what it sets in $env still reaches the prompt.
+def "test last keeps what your display hook sets" [] {
+    for setup in ['{|| $env.NURX_SEEN = true; table }' '"$env.NURX_SEEN = true; table"'] {
+        let p = (probe start $"$env.config.hooks.display_output = ($setup)\nnurx enable last")
+        probe run $p '{a: [1 2]}'
+        assert equal (probe eval $p '$env.NURX_SEEN?') true $"display_output = ($setup)"
+        ^rex kill $p.s
+    }
+}
+
 def "test last opens explore" [] {
     let p = (probe start 'nurx enable last')
     probe run $p '[[name size]; [a 1] [b 2]]'
@@ -448,6 +458,7 @@ def main [filter: string = ""] {
         ["picker needs nurx.lua" {|| test picker needs nurx.lua }]
         ["keeps your hooks" {|| test keeps your hooks }]
         ["last keeps your display hook" {|| test last keeps your display hook }]
+        ["last keeps what your display hook sets" {|| test last keeps what your display hook sets }]
         ["last opens explore" {|| test last opens explore }]
         [status {|| test status }]
         ["status in a nested nu" {|| test status in a nested nu }]

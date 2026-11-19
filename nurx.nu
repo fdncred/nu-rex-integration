@@ -9,7 +9,7 @@
 # them. The picker, `VALUE | nurx`, also needs nurx.lua loaded from Rex's init.lua.
 
 # This module's version. CHANGELOG.md has a section for each one, and test.nu checks they match.
-const VERSION = "0.2.0"
+const VERSION = "0.2.1"
 
 const TERMINAL = "com.superlogical.terminal"
 const FEATURES = [status last layout tint]
@@ -402,7 +402,8 @@ export def "nurx last" [
 
 # display_output holds one hook, not a list, so wrap the one already there: save the value, then
 # let that hook render it. A string hook is code, so the wrapper stays a string and reaches the
-# stash through $env, which works however this module was imported. No hook means `table`.
+# stash through $env, which works however this module was imported. No hook means `table`. Your
+# hook runs with `do --env`, so what it sets in $env, such as $env.LAST_EXIT_CODE, still counts.
 def --env "enable last" []: nothing -> nothing {
     $env.NURX_LAST_STASH = {|| stash value }
     let current = $env.config.hooks.display_output?
@@ -410,9 +411,9 @@ def --env "enable last" []: nothing -> nothing {
     if $kind == "string" and ($current | str contains "NURX_LAST_STASH") { return }
     if $kind == "closure" and (view source $current | str contains "NURX_LAST_STASH") { return }
     $env.config.hooks.display_output = if $kind == "closure" {
-        {|| do $env.NURX_LAST_STASH | do $current }
+        {|| do $env.NURX_LAST_STASH | do --env $current }
     } else {
-        $"do $env.NURX_LAST_STASH | do {|| ($current | default 'table') }"
+        $"do $env.NURX_LAST_STASH | do --env {|| ($current | default 'table') }"
     }
 }
 

@@ -4,6 +4,12 @@ Each version of nurx has a section here, newest first. `nurx version` prints the
 
 Versions follow [semantic versioning](https://semver.org). Renaming or removing a command, flag, environment variable or file location breaks someone's `config.nu`, so it bumps the major version, or the minor version while nurx is at 0.x.
 
+## 0.2.1 - Unreleased
+
+### Fixed
+
+- With `nurx enable last`, your own `display_output` hook's changes to `$env` are kept again, as they are without nurx. That includes `$env.LAST_EXIT_CODE`, so a failure your hook catches still reaches the prompt and the `status` report.
+
 ## 0.2.0 - 2026-11-18
 
 ### Added
